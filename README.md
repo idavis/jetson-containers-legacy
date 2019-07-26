@@ -1,6 +1,10 @@
-# Jetson Containers
+# Jetson Containers Legacy
 
-Running CUDA containers on the Jetson platform
+For running modern versions of Jetson/JetPack containers, please use the [jetson-conatiners](https://github.com/idavis/jetson-containers/) repository.
+
+This repository is maintained for posterity.
+
+## Table of Contents
 
 1. [Preface](#preface)
 2. [Introduction](#introduction)
@@ -13,7 +17,7 @@ Running CUDA containers on the Jetson platform
 
 ## Preface
 
-This project provides a repeatable, containerized approach to building software and libraries to run on the Nvidia Jetson platform.
+This project provides a repeatable, containerized approach to building software and libraries to run on the Nvidia Jetson platforms 4.1.1 and prior.
 
 ## Introduction
 
@@ -23,13 +27,7 @@ These containers enable the OS can be flashed without JetPack having only the ma
 
 When building third party libraries, such as OpenCV and PyTorch, a swapfile will *likely* have to be created in the host OS. These packages require more memory than the system contains and will crash with very cryptic errors if they run out of memory.
 
-### JetPack 4.2
-
-The JetPack 4.2 base images follow the Nvidia pattern of having base, runtime, and devel images for each device to start from. Staring in JetPack 4.2, you cannot download the JetPack installers without logging in with the SDK manager, so the make tasks herein will automate the download/login through the SDK Manager and save off the device specific packages.
-
-### Older
-
-Each image, whether Linux for Tegra (L4T) or JetPack based provides args for the `URL` to pull installers from. Once the JetPack installer has been run, copy the packages to your own source for downloading. This will likely increase your download speed and allow building images if the package URLs ever change. This could be automated to follow the pattern used in 4.2+, but it is a lot of effort at the moment.
+Each image, whether Linux for Tegra (L4T) or JetPack based provides args for the `URL` to pull installers from. Once the JetPack installer has been run, copy the packages to your own source for downloading. This will likely increase your download speed and allow building images if the package URLs ever change.
 
 ## Configuration
 
@@ -38,7 +36,6 @@ Each image, whether Linux for Tegra (L4T) or JetPack based provides args for the
 The `Makefile` scripts will import a `.env` file (for an example look at the `.envtemp` file) and export the variables defined.
 
 - `REPO` - This is for your own container registry/repo. The builds will take care of the tags and images names. For example `REPO=mycontainers.azurecr.io/l4t`
-- `NV_USER` - Sets the email address to be used when authenticating with the SDK Manager. This isn't stored and you'll be prompted for your password when the container runs.
 - `DOCKER` - Allows swapping out for another container runtime such as Moby or Balena. This variable is used in all container operations.
 - `DOCKER_HOST` - Setting the `DOCKER_HOST` variable will proxy builds to another machine such as a Jetson device. This allows running the `make` scripts from an `x86_x64` host. This feature was added in November 2018. When using this feature, it is helpful to add your public key to the device's `~/.ssh/authorized_keys` file. This will prevent credential checks on every build.
 - `DOCKER_BUILD_ARGS` - Allows adding arguments such as volume mounting or cleanup (`-rm/--squash`) during build operations.
@@ -62,25 +59,10 @@ Storing these images will also require significant disk space. It is highly reco
 The project uses `make` to set up the dependent builds constructing the final images. The recipes fall into a few categories:
 
 - Driver packs (32.1, 31.,1 28.3, 28.2.1, 28.2, 28.1)
-- JetPack Dependencies (4.2)
-- JetPack (4.2, 4.1.1, 3.3, 3.2.1)
-- Devices (jax (xavier), tx2, tx1, nano-dev)
+- JetPack (4.1.1, 3.3, 3.2.1)
+- Devices (jax (xavier), tx2, tx1)
 - Flashing containers
 - OpenCV (4.0.1)
-
-### Dependencies
-
-The JetPack dependency builds must be run on an `x86_64` host. They can be built with `make <device>-jetpack-<jetpack-version>-deps`. This will build an image using files downlaoded from the SDK Manager installed. Building this image will require authentication and `NV_USER` should be set in your `.env` file. As the container runs, enter your password when prompted. For `sudo` prompts, enter `pass` as the password. Once built, push the image to your container registry so that the device can leverage it all other builds. This may sound like a lot, but it is really just:
-
-- Set `NV_USER` in the `.env` file
-- Make sure `DOCKER_HOST`, if set, is pointing to an `x86_64` host
-- `make jax-jetpack-4.2-deps`, or `make nano-dev-jetpack-4.2-deps`, or `make tx2-jetpack-4.2-deps`, or `make jetpack-4.2-deps` to build them all
-- Wait, then enter your Nvidia developer password when prompted
-- Enter `pass`
-- Enter `pass`
-- Upload finished image to your container registry
-
-All other steps for JetPack 4.2+ require these previous steps to have been completed.
 
 ### Driver Packs
 
@@ -90,24 +72,15 @@ The driver packs form the base of the device images. Each version of JetPack is 
 
 Note: not all combinations are valid and the `Makefile` should have all valid combinations declared.
 Note: if these command's are not run on the device, the `DOCKER_HOST` variable must be set.
-Note: from 4.2, building Jetson containers on the host is also supported: leave the `DOCKER_HOST` empty and make sure [qemu-user-static](https://github.com/multiarch/qemu-user-static) is installed and interpreters are registered on the host. If not, please run:
-
-```bash
-sudo apt-get update && sudo apt-get install -y --no-install-recommends qemu-user-static binfmt-support
-```
 
 examples:
 
 ```bash
 make driver-packs # build all driver pack bases
-make jetpack-4.2 # build all JetPack 4.2. device builds and the driver packs they depend on
-make 32.1-jax-jetpack-4.2
 make 28.3-tx2-jetpack-3.3
 make 28.2.1-tx2-jetpack-3.2.1
 make 28.2-tx1-jetpack-3.2.1
 ```
-
-There are additional recipes for building the `32.1-jax-jetpack-4.2` samples container (`make build-32.1-jax-jetpack-4.2-samples`) and running the container (`make run-32.1-jax-jetpack-4.2-samples`) which demonstrates mult-stage builds based on `devel` images.
 
 ## Running
 
@@ -129,10 +102,10 @@ docker run \
 
 Running containerized applications with X11 forwarding requires simple configuration changes
 
-- On the host OS, run `xhost +`
+- On the host OS, run `xhost +local:docker`
 - Add `--net=host` and `-e "DISPLAY"` arguments to docker
 
-The `DOCKER_RUN_ARGS` variable can be set in the `.env` file to `DOCKER_RUN_ARGS=--net=host -e "DISPLAY"` which will set up the forwarding when using `make`. Then run the `run-32.1-jax-jetpack-4.2-samples` task. This works for both local and remote sessions leveraging `DOCKER_HOST`. Note that when using `DOCKER_HOST` the forwarding will be done on the target and not forwarded locally.
+The `DOCKER_RUN_ARGS` variable can be set in the `.env` file to `DOCKER_RUN_ARGS=--net=host -e "DISPLAY"` which will set up the forwarding when using `make`. 
 
 ## OpenCV
 
@@ -141,7 +114,6 @@ Building OpenCV can take a few hours depending on your device and performance mo
 ### Building OpenCV
 
 ```
-make opencv-4.0.1-l4t-32.1-jetpack-4.2
 make opencv-4.0.1-l4t-28.3-jetpack-3.3
 ```
 
@@ -156,7 +128,6 @@ Examples:
 make image-bionic-server-20190402 # Set up an image which can flash bionic server to the device
 make image-jetpack-bases # create all jetpack default configuration images for flashing.
 make image-l4t-28.3-tx2-jetpack-3.3-base # JetPack 3.3 for TX2 with driver pack 28.3
-make image-l4t-32.1-jax-jetpack-4.2-base # JetPack 4.2 for Xavier with driver pack 32.1
 ```
 
 Note: Ensure that if the `DOCKER_HOST` variable is set, the host specified must be `x86_64`.
@@ -168,10 +139,9 @@ To flash the device, put the device into recovery mode and connect it to the hos
 >:~/jetson-containers/flash$ docker images
 REPOSITORY                           TAG                 IMAGE ID            CREATED             SIZE
 l4t:28.3-tx2-jetpack-3.3-base        latest              cc58f9478aa2        22 hours ago        3.35GB
-l4t:32.1-jax-jetpack-4.2-base     latest              e59950b4ebdc        5 hours ago         3.73GB
 ```
 
-We can flash the Xavier with the default JetPack 4.2 configuration by executing `./flash.sh l4t-32.1-jax-jetpack-4.2-base`. If your device is not in recovery mode, you will see an error similar to:
+We can flash the tx2 with the default JetPack 3.3 configuration by executing `./flash.sh l4t-28.3-tx2-jetpack-3.3-base`. If your device is not in recovery mode, you will see an error similar to:
 
 ```
 ###############################################################################
@@ -197,17 +167,6 @@ If your device was in recovery mode, you should see progress displayed. Once the
 
 ### Jetson
 
-#### Dependency packs:
-
-Note that these are only used on build machines.
-
-| Repository | Driver | Size |
-|---|---|---|
-| l4t | jax-jetpack-4.2.1-deps | 3.57GB |
-| l4t | jax-jetpack-4.2-deps | 3.32GB |
-| l4t | nano-dev-jetpack-4.2-deps | 3.31GB |
-| l4t | tx2-jetpack-4.2-deps | 3.31GB |
-
 #### Driver packs:
 
 | Repository | Driver | Size |
@@ -223,29 +182,6 @@ Note that these are only used on build machines.
 | l4t | 32.1-nano-dev | 469MB |
 | l4t | 32.1-tx2 | 479MB |
 | l4t | 32.2-jax | 493MB |
-
-#### JetPack 4.2.1
-
-| Repository | Tag | Size |
-|---|---|---|
-| l4t | 32.2-jax-jetpack-4.2.1-base | 503MB |
-| l4t | 32.2-jax-jetpack-4.2.1-runtime | 1.26GB |
-| l4t | 32.2-jax-jetpack-4.2.1-devel | 5.83GB |
-
-#### JetPack 4.2
-
-| Repository | Tag | Size |
-|---|---|---|
-| l4t | 32.1-jax-jetpack-4.2-base | 489MB |
-| l4t | 32.1-jax-jetpack-4.2-runtime | 1.23GB |
-| l4t | 32.1-jax-jetpack-4.2-devel | 5.69GB |
-| l4t | 32.1-jax-jetpack-4.2-samples | 2.32GB |
-| l4t | 32.1-nano-dev-jetpack-4.2-base | 479MB |
-| l4t | 32.1-nano-dev-jetpack-4.2-runtime | 1.2GB |
-| l4t | 32.1-nano-dev-jetpack-4.2-devel | 5.66GB |
-| l4t | 32.1-tx2-jetpack-4.2-base | 489MB |
-| l4t | 32.1-tx2-jetpack-4.2-runtime | 1.21GB |
-| l4t | 32.1-tx2-jetpack-4.2-devel | 5.67GB |
 
 #### JetPack 4.1.1
 
